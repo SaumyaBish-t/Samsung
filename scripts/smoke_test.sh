@@ -16,8 +16,8 @@ EXAMPLES=("$@")
 
 cd "$ROOT"
 source .venv/bin/activate
-cp .env "$V3/.env.local"
-set -a; source .env; set +a
+tr -d '\r' < .env > "$V3/.env.local"   # tolerate CRLF .env edited on Windows
+set -a; source <(tr -d '\r' < .env); set +a
 export FDB_V3_DIR="$V3" HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
 
 if ! curl -sf http://127.0.0.1:8880/v1/models >/dev/null; then

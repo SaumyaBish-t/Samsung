@@ -58,8 +58,8 @@ fi
 [[ -d "$V3/fdb_v3_data_released" ]] || { echo "Data folder fdb_v3_data_released not found after extract."; exit 1; }
 
 # Harness reads LiveKit + judge keys from v3/.env.local
-cp .env "$V3/.env.local"
-set -a; source .env; set +a
+tr -d '\r' < .env > "$V3/.env.local"   # tolerate CRLF .env edited on Windows
+set -a; source <(tr -d '\r' < .env); set +a
 export FDB_V3_DIR="$V3"
 
 # ── 4. Local services ──────────────────────────────────────────────
