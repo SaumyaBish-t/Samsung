@@ -19,7 +19,7 @@ source .venv/bin/activate
 tr -d '\r' < .env > "$V3/.env.local"   # tolerate CRLF .env edited on Windows
 set -a; source <(tr -d '\r' < .env); set +a
 export FDB_V3_DIR="$V3" HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
-export DEV_ASR_DEVICE="${DEV_ASR_DEVICE:-cpu}"   # 6 GB laptop GPU OOMs with ASR next to Kokoro
+export DEV_ASR_DEVICE="${DEV_ASR_DEVICE:-cuda-half}"   # cpu option starves a 7 GB-RAM WSL during live audio
 
 if ! curl -sf http://127.0.0.1:8880/v1/models >/dev/null; then
   python -m agent.kokoro_server > /tmp/smoke_kokoro.log 2>&1 &

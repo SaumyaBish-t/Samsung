@@ -22,7 +22,9 @@ from mock_apis import MockAPIRegistry  # from FDB_V3_DIR, unchanged
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("agent")
 
-server = AgentServer()
+# The harness runs one room at a time; a couple of warm processes is enough and
+# keeps RAM free on small machines (LiveKit's default pre-forks many).
+server = AgentServer(num_idle_processes=C.NUM_IDLE_PROCESSES)
 
 
 class PlannerAgent(Agent):
