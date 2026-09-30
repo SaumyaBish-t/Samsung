@@ -7,6 +7,36 @@ from our own best full run in `eval/results/`).
 
 ---
 
+## Context (read this first)
+
+**Who the deck is for.** A jury from Samsung R&D Institute India (Language AI Team and PRISM Team) judging the Samsung PRISM Generative AI Hackathon, 3rd edition (2026–27). They are ML/speech engineers: they know LLMs, ASR, TTS and tool calling, and they value honest engineering over hype. Round 1 is judged from the submission only (repo, README, reproduction script, results, video, this deck). Top teams go to Round 2, a live demo where jurors interrupt the agent in person and ask design questions, so the deck must explain *why* each design choice was made.
+
+**The problem in plain words.** Today's voice assistants are half-duplex: they wait for you to finish, think, then talk. Real people don't talk like that. They say "um", pause, start again, and change their minds halfway ("book Tuesday, no wait, Wednesday"). When that happens, current assistants either act on the wrong value, act twice (booking two flights or charging twice), or go silent while a slow backend call runs. Theme 05 asks for an agent that keeps talking naturally, does its work in the background, and handles mid-sentence corrections without stale or duplicate actions.
+
+**How it is measured.** Full-Duplex-Bench v3 is a public benchmark from National Taiwan University (NVIDIA in an advisory role). It streams 100 real recordings of people making requests, full of natural disfluencies, into the agent through LiveKit (a real-time audio/video platform) and records which tools the agent calls. The tools are 12 fake ("mock") APIs such as `search_flights`, `book_flight`, `get_exchange_rate`, `add_to_cart`, with deterministic outputs. A scenario **passes** only if the agent calls exactly the expected tools with the right arguments: one missing call, one extra call, or one wrong value fails it. An LLM judge (GPT-4o) checks argument meaning ("August 20" = "2026-08-20") and answer quality. Latency (time until the agent first speaks, calls a tool, delivers the key answer) is also reported. The organizers re-run our reproduction script themselves; only their run counts.
+
+**Key terms (define them on first use in the deck).**
+- *Disfluency*: filler ("um"), pause, hesitation, false start, or self-correction.
+- *Self-correction*: the user replaces something they just said ("Paris, actually Berlin").
+- *Cascaded pipeline*: separate speech-to-text → text LLM → text-to-speech models, as opposed to a single end-to-end speech model.
+- *Turn detection / endpointing*: deciding when the user has finished speaking.
+- *Tool call*: the LLM asking the system to run an API with arguments.
+- *Idempotency*: running the same action twice has no extra effect; the ledger enforces this.
+- *Commit hold*: our short wait before executing tools, so a correction that arrives after a pause cancels the stale call.
+- *Strict pass rate*: percentage of scenarios with exactly the right calls and arguments.
+
+**Why we chose this design (the story to tell).**
+1. We read the benchmark code before designing. Every tool the agent *executes* is logged and scored, so speculative or early calls count as mistakes. That ruled out "call tools early on partial speech", a common latency trick.
+2. The recordings never react to the agent, so classic barge-in (the user interrupting the agent's speech) matters less than *early endpointing*: the agent thinking the user finished during a pause in the middle of a correction.
+3. First end-to-end test: 4/7 runs correct. In both failures the speaker paused just before correcting ("…Boston. Wait. [pause] Actually Chicago"), the agent committed "Boston", then also "Chicago" → an extra call → fail. The fix was the commit hold plus prompt rules (don't act on a trailing "wait/actually/um"; never invent missing values). Re-test: 7/7 correct including every self-correction case.
+4. A cascaded pipeline (rather than a realtime speech model) makes every part swappable, inspectable and reproducible, which matters because 60% of the score depends on the organizers re-running our code.
+5. Hosted models (Groq for speech-to-text, Ollama Cloud for the LLM) because the dev machine is a laptop with a 6 GB GPU; Kokoro TTS runs locally because it is tiny (82M parameters) and fast. A fallback LLM on the same API keeps the run going if the main model errors.
+6. Honesty rules we follow: no hard-coding or memorizing benchmark items (the benchmark is public, and doing so is disqualifying; we verified our prompt examples do not appear in the dataset), no state carried between scenarios, no calls to our own servers during evaluation.
+
+**What is still in progress (do not overclaim).** The full 100-scenario benchmark run and the extension use case are not finished yet; their numbers and screenshots go into the `<<...>>` placeholders. Latency is currently 5–8 s from end of speech to spoken answer and is being optimized; present it as a known limitation, not a strength.
+
+---
+
 You are filling in the official **Samsung PRISM Generative AI Hackathon 2026–27** submission template (12 slides). Keep the template's layout, fonts, colours, logos and slide titles exactly as they are; only add content inside each slide. Use short bullet points (max ~6 bullets per slide, max ~12 words per bullet), one visual per slide where suggested, and no paragraphs. Tone: technical, honest, specific. Never invent numbers; where a value is marked `<<...>>`, leave the placeholder visible.
 
 ## Project facts (source of truth)
