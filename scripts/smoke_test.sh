@@ -3,20 +3,22 @@
 # expected vs actual tool calls. Assumes install + Kokoro already done.
 #
 #   bash scripts/smoke_test.sh                       # default mix
-#   bash scripts/smoke_test.sh travel_09 finance_18  # specific example IDs
+#   bash scripts/smoke_test.sh ecommerce_09 finance_12  # specific example IDs
+#
+# Uses scripts/dev_harness.py (fp16 ASR) so it fits a 6 GB laptop GPU.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 V3="$ROOT/third_party/Full-Duplex-Bench/v3"
 LABEL="${PROVIDER_LABEL:-smoke}"
 EXAMPLES=("$@")
-[[ ${#EXAMPLES[@]} -gt 0 ]] || EXAMPLES=(travel_01 travel_09 travel_10 finance_18 ecommerce_01)
+[[ ${#EXAMPLES[@]} -gt 0 ]] || EXAMPLES=(ecommerce_01 ecommerce_09 finance_12 housing_09 ecommerce_18)  # easy, 3x self-correction, hard
 
 cd "$ROOT"
 source .venv/bin/activate
 cp .env "$V3/.env.local"
 set -a; source .env; set +a
-export FDB_V3_DIR="$V3"
+export FDB_V3_DIR="$V3" HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
 
 if ! curl -sf http://127.0.0.1:8880/v1/models >/dev/null; then
   python -m agent.kokoro_server > /tmp/smoke_kokoro.log 2>&1 &
@@ -32,7 +34,7 @@ sleep 12
 
 cd "$V3"
 for ex in "${EXAMPLES[@]}"; do
-  python run_tool_benchmark.py --provider "$LABEL" --example "$ex" --force 2>&1 | grep -E "Transcript|Perceived|❌|⚠️" || true
+  python "$ROOT/scripts/dev_harness.py" --provider "$LABEL" --example "$ex" --force 2>&1 | grep -E "Transcript|Perceived|❌|⚠️" || true
 done
 
 python - "$LABEL" "${EXAMPLES[@]}" <<'PY'
