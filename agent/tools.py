@@ -8,8 +8,11 @@ Differences from the template:
     mock latency never freezes VAD / STT / TTS on the event loop;
   * a per-room ledger dedupes identical calls (same tool + same normalized
     args), so a replanned turn can never execute or log a call twice;
-  * a call whose speech handle was already interrupted (user kept talking /
-    corrected themselves) is dropped before execution.
+  * commit hold: before the first tool of a reply executes, wait briefly; if
+    the user resumes speaking (typically a self-correction after a pause:
+    "...Boston — wait, actually Chicago") the planned calls are dropped and
+    the next turn replans with the full utterance;
+  * spoken identifiers are canonicalized ("P.O. 999" -> "PO999").
 
 Only calls that actually execute are written to the telemetry log.
 """
@@ -17,15 +20,24 @@ Only calls that actually execute are written to the telemetry log.
 import asyncio
 import json
 import logging
+import re
 import time
 
 from livekit.agents import RunContext, llm
 
-from agent.config import TOOL_LOG_PATH
+from agent.config import COMMIT_HOLD_S, TOOL_LOG_PATH
 from agent.latency import LatencyTracker
 
 log = logging.getLogger("tools")
 function_tool = llm.function_tool
+
+ID_ARGS = {"order_id", "doc_number", "product_id"}
+
+
+def _canonical_id(value):
+    if not isinstance(value, str):
+        return value
+    return re.sub(r"[\s.\-]", "", value).upper()
 
 
 def _normalize(value):
@@ -61,6 +73,27 @@ class AssistantFnc:
         self.tracker = tracker
         self.registry = registry
         self.ledger = ToolLedger()
+        # User speech activity, updated by the session in main.py.
+        self.user_speaking = False
+        self.user_speech_starts = 0
+        self._held_handles: set[int] = set()
+
+    def on_user_state(self, state: str):
+        speaking = state == "speaking"
+        if speaking and not self.user_speaking:
+            self.user_speech_starts += 1
+        self.user_speaking = speaking
+
+    async def _intent_still_current(self, context: RunContext) -> bool:
+        """Hold once per reply; False if the user resumed talking meanwhile."""
+        handle = context.speech_handle
+        if id(handle) not in self._held_handles:
+            self._held_handles.add(id(handle))
+            starts = self.user_speech_starts
+            await asyncio.sleep(COMMIT_HOLD_S)
+            if self.user_speech_starts != starts:
+                return False
+        return not (handle.interrupted or self.user_speaking)
 
     def _log_tool_call(self, func_name, args, t_start, t_end):
         with open(TOOL_LOG_PATH, "a") as f:
@@ -71,6 +104,7 @@ class AssistantFnc:
             }) + "\n")
 
     async def _run(self, context: RunContext, name: str, args: dict) -> str:
+        args = {k: (_canonical_id(v) if k in ID_ARGS else v) for k, v in args.items()}
         key = ToolLedger.key(name, args)
 
         if (cached := self.ledger.get(key)) is not None:
@@ -80,9 +114,10 @@ class AssistantFnc:
             log.info("dedup in-flight, awaiting %s", key)
             return await pending
 
-        if context.speech_handle.interrupted:
-            log.info("dropping superseded call %s", key)
-            return json.dumps({"status": "cancelled", "reason": "user changed the request"})
+        if not await self._intent_still_current(context):
+            log.info("dropping superseded call %s (user kept talking)", key)
+            return json.dumps({"status": "cancelled",
+                               "reason": "user kept talking; wait for their full request"})
 
         fut = asyncio.get_running_loop().create_future()
         self.ledger._inflight[key] = fut

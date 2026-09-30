@@ -59,6 +59,10 @@ async def entrypoint(ctx: agents.JobContext):
             tracker.user_done_at = time.time()
             tracker.query_received = True
 
+    @session.on("user_state_changed")
+    def on_user_state(ev: agents.voice.UserStateChangedEvent):
+        fnc.on_user_state(ev.new_state)
+
     @session.on("agent_state_changed")
     def on_agent_state(ev: agents.voice.AgentStateChangedEvent):
         if ev.new_state == "speaking" and tracker.query_received and not tracker.agent_start_at:

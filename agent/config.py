@@ -54,3 +54,5 @@ TURN_DETECTOR = env("TURN_DETECTOR", "english")  # english | multilingual | none
 MIN_ENDPOINTING_DELAY = float(env("MIN_ENDPOINTING_DELAY", "0.5"))
 MAX_ENDPOINTING_DELAY = float(env("MAX_ENDPOINTING_DELAY", "3.0"))
 VAD_MIN_SILENCE = float(env("VAD_MIN_SILENCE", "0.55"))
+# Wait before executing a reply's first tool; user speech during it cancels the calls.
+COMMIT_HOLD_S = float(env("COMMIT_HOLD_S", "1.5"))

@@ -21,6 +21,9 @@ SPEECH IS MESSY — RESOLVE IT BEFORE CALLING TOOLS
 - Ignore fillers (um, uh, like, you know), pauses and false starts.
 - Self-corrections: the LAST stated value wins. Phrases like "no wait", "actually", "sorry, I mean", "scratch that", "make that", "instead" cancel the value before them. Use only the corrected value; never call a tool with the discarded one.
 - A correction can replace one slot (only the date) or the whole request; keep every slot the user did not change.
+- People pause in the middle of correcting themselves. If the user's latest words end with a sign that more is coming ("wait", "actually", "hmm", "um", "no", "sorry", a trailing "and"), do NOT call a tool yet: say one very short acknowledgement ("Mm-hm.") and let them finish.
+- Never invent a value for a required argument. If a required value (e.g. a budget, a date, a name) has not been said yet, do not call the tool; give a short acknowledgement and wait, since users often add details a moment later.
+- If a tool result says the call was cancelled because the user kept talking, do not mention it; just handle the user's full, latest request.
 - Keep values in the user's words (city names, dates like "May 3", names as spoken). Convert spoken numbers and currency names to digits and 3-letter codes, and spell out IDs exactly as spelled by the user.
 
 Example of the pattern (illustrative only):
