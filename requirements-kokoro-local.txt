@@ -1,0 +1,6 @@
+# Optional: run Kokoro without Docker via agent/kokoro_server.py.
+# Also needs: apt install espeak-ng
+kokoro>=0.9.4
+soundfile
+fastapi
+uvicorn
