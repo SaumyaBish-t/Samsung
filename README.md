@@ -33,7 +33,7 @@ Silero VAD ─► Groq Whisper STT ─► LiveKit turn detector (waits out "um�
 | Turn detection | LiveKit `EnglishModel` | local | — |
 | STT | `whisper-large-v3-turbo` | Groq API | `GROQ_API_KEY` |
 | Planner | `gpt-oss:120b` → fallback `gemma4:31b` | Ollama Cloud | `OLLAMA_API_KEY` |
-| TTS | Kokoro (`af_heart`) | local Docker (Kokoro-FastAPI) | — |
+| TTS | Kokoro-82M (`af_heart`) | local Python server `agent/kokoro_server.py` (Docker optional) | — |
 | Transport | LiveKit Cloud | hosted | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` |
 | Judge (benchmark) | gpt-4o | OpenAI | `OPENAI_API_KEY` |
 
@@ -41,14 +41,14 @@ All keys go in `.env` (template: `.env.example`). No keys are committed.
 
 ## Reproduce
 
-Requirements: Ubuntu 22.04, Python 3.10, NVIDIA GPU + CUDA 12.x, Docker with NVIDIA container toolkit, ffmpeg.
+Requirements: Ubuntu 22.04, Python 3.10, NVIDIA GPU + CUDA 12.x, and `apt install ffmpeg unzip espeak-ng python3.10-venv`. No Docker needed.
 
 ```bash
 cp .env.example .env    # fill in keys
 bash scripts/run_fdb_v3.sh
 ```
 
-The script pins FDB-v3 to a fixed commit, installs deps, downloads the data, starts Kokoro,
+The script pins FDB-v3 to a fixed commit, installs deps, downloads the data, starts the local Kokoro server,
 runs a preflight (keys + tool-call smoke test on both planner models), runs all 100 scenarios,
 evaluates with the LLM judge, and writes everything to `eval/results/<timestamp>/`.
 

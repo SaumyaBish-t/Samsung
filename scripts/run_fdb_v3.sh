@@ -4,9 +4,9 @@
 #   cp .env.example .env   # fill in keys
 #   bash scripts/run_fdb_v3.sh
 #
-# Tested target: Ubuntu 22.04, Python 3.10, NVIDIA GPU + CUDA 12.x, Docker
-# (+ NVIDIA container toolkit for the GPU Kokoro image). System packages:
-# ffmpeg unzip python3.10-venv.
+# Tested target: Ubuntu 22.04, Python 3.10, NVIDIA GPU + CUDA 12.x.
+# System packages: ffmpeg unzip espeak-ng python3.10-venv. Docker optional
+# (KOKORO_MODE=docker); default runs Kokoro as a local Python server.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,7 +18,8 @@ FDB_DIR="$ROOT/third_party/Full-Duplex-Bench"
 V3="$FDB_DIR/v3"
 DATA_GDRIVE_ID="1SO_4MTazWQ_jvCx0dtmpQ-t40bdd07yz"
 PROVIDER_LABEL="${PROVIDER_LABEL:-interrupt_agent}"
-KOKORO_IMAGE="${KOKORO_IMAGE:-ghcr.io/remsky/kokoro-fastapi-gpu:latest}"   # dev laptop: kokoro-fastapi-cpu; pin tag before submit
+KOKORO_MODE="${KOKORO_MODE:-python}"   # python = agent/kokoro_server.py (default) | docker
+KOKORO_IMAGE="${KOKORO_IMAGE:-ghcr.io/remsky/kokoro-fastapi-gpu:latest}"   # only for KOKORO_MODE=docker
 RUN_ID="$(date +%Y%m%d-%H%M%S)"
 OUT="$ROOT/eval/results/$RUN_ID"
 mkdir -p "$OUT"
@@ -44,6 +45,8 @@ fi
 source .venv/bin/activate
 pip install --quiet --upgrade pip
 pip install --quiet -r requirements.txt
+[[ "$KOKORO_MODE" == python ]] && pip install --quiet -r requirements-kokoro-local.txt \
+  && python -m spacy download en_core_web_sm -q
 pip install --quiet "nemo_toolkit[asr]" pydub ffmpeg-python gdown   # harness-side ASR + data download
 
 # ── 3. Benchmark data ──────────────────────────────────────────────
@@ -60,13 +63,18 @@ set -a; source .env; set +a
 export FDB_V3_DIR="$V3"
 
 # ── 4. Local services ──────────────────────────────────────────────
-log "Kokoro TTS ($KOKORO_IMAGE)"
+log "Kokoro TTS ($KOKORO_MODE)"
 if ! curl -sf "http://127.0.0.1:8880/v1/models" >/dev/null; then
-  docker rm -f fdb-kokoro >/dev/null 2>&1 || true
-  GPU_FLAG=""; [[ "$KOKORO_IMAGE" == *gpu* ]] && GPU_FLAG="--gpus all"
-  # shellcheck disable=SC2086
-  docker run -d --name fdb-kokoro $GPU_FLAG -p 8880:8880 "$KOKORO_IMAGE" >/dev/null
-  for _ in $(seq 1 90); do curl -sf "http://127.0.0.1:8880/v1/models" >/dev/null && break; sleep 2; done
+  if [[ "$KOKORO_MODE" == docker ]]; then
+    docker rm -f fdb-kokoro >/dev/null 2>&1 || true
+    GPU_FLAG=""; [[ "$KOKORO_IMAGE" == *gpu* ]] && GPU_FLAG="--gpus all"
+    # shellcheck disable=SC2086
+    docker run -d --name fdb-kokoro $GPU_FLAG -p 8880:8880 "$KOKORO_IMAGE" >/dev/null
+  else
+    python -m agent.kokoro_server > "$OUT/kokoro.log" 2>&1 &
+    KOKORO_PID=$!
+  fi
+  for _ in $(seq 1 180); do curl -sf "http://127.0.0.1:8880/v1/models" >/dev/null && break; sleep 2; done
 fi
 curl -sf "http://127.0.0.1:8880/v1/models" >/dev/null || { echo "Kokoro TTS did not come up on :8880"; exit 1; }
 
