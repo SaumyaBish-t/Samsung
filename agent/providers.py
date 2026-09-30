@@ -4,6 +4,7 @@ import logging
 
 from livekit.agents import llm
 from livekit.plugins import openai, silero
+from livekit.plugins import turn_detector  # noqa: F401  registers plugin so `download-files` fetches its model
 
 from agent import config as C
 
