@@ -37,10 +37,12 @@ def need_env():
     missing = [k for k, v in {
         "LIVEKIT_URL": C.env("LIVEKIT_URL"), "LIVEKIT_API_KEY": C.env("LIVEKIT_API_KEY"),
         "LIVEKIT_API_SECRET": C.env("LIVEKIT_API_SECRET"), "LLM_API_KEY/OLLAMA_API_KEY": C.LLM_API_KEY,
-        "STT_API_KEY/GROQ_API_KEY": C.STT_API_KEY, "OPENAI_API_KEY (judge)": C.env("OPENAI_API_KEY"),
+        "STT_API_KEY/GROQ_API_KEY": C.STT_API_KEY,
     }.items() if not v]
     if missing:
         raise RuntimeError("missing " + ", ".join(missing))
+    if not C.env("OPENAI_API_KEY"):
+        return "agent keys set (WARNING: no OPENAI_API_KEY, so --use-llm judge falls back to exact match)"
     return "all set"
 
 
