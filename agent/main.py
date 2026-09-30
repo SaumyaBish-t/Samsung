@@ -55,9 +55,18 @@ async def entrypoint(ctx: agents.JobContext):
     @session.on("user_input_transcribed")
     def on_user_input(ev: agents.voice.UserInputTranscribedEvent):
         log.info("STT (final=%s): %s", ev.is_final, ev.transcript)
-        if ev.is_final and not tracker.query_received:
+        if ev.is_final:
+            # Latest final segment = end of the request that triggers tools.
             tracker.user_done_at = time.time()
             tracker.query_received = True
+
+    @session.on("metrics_collected")
+    def on_metrics(ev: agents.MetricsCollectedEvent):
+        m = ev.metrics
+        fields = {k: round(v, 3) for k in ("end_of_utterance_delay", "transcription_delay",
+                                           "on_user_turn_completed_delay", "ttft", "duration", "ttfb")
+                  if isinstance(v := getattr(m, k, None), (int, float))}
+        log.info("METRICS %s %s", type(m).__name__, fields)
 
     @session.on("user_state_changed")
     def on_user_state(ev: agents.voice.UserStateChangedEvent):
