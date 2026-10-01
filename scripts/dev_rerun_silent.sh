@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# DEV: re-run recordings where the agent heard nothing (infrastructure
-# failure: no tool call AND empty agent transcript), e.g. after the laptop ran
-# out of memory and the harness's audio client never streamed.
+# DEV: (re-)run recordings that have no result yet, or where the agent heard
+# nothing (infrastructure failure: no tool call AND empty agent transcript),
+# e.g. after the laptop ran out of memory. Each recording runs in a fresh
+# harness process: the long-lived NeMo ASR process leaks RAM (4.6 GB after
+# ~60 recordings) and starves the audio client on small machines.
 # Re-runs are listed in eval/results/<label>/RERUNS.txt for transparency.
 #
 #   bash scripts/dev_rerun_silent.sh <label>
@@ -21,16 +23,23 @@ export FDB_V3_DIR="$V3" HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}" DEV_ASR_DEVICE="${
 
 mapfile -t SILENT < <(cd "$V3" && python - "$LABEL" <<'PY'
 import glob, json, sys
+import os
 label = sys.argv[1]
-for f in sorted(glob.glob(f"fdb_v3_data_released/*/result_{label}.json")):
-    r = json.load(open(f))
-    if not r.get("actual_tool_calls") and not (r.get("transcript") or "").strip():
-        folder = f.split("/")[1]
-        example, pid = folder.rsplit("_", 1)
-        print(f"{example} {pid}")
+for wav in sorted(glob.glob("fdb_v3_data_released/*/input.wav")):
+    folder = wav.split("/")[1]
+    res = f"fdb_v3_data_released/{folder}/result_{label}.json"
+    if os.path.exists(res):
+        r = json.load(open(res))
+        if r.get("actual_tool_calls") or (r.get("transcript") or "").strip():
+            continue
+        why = "silent"
+    else:
+        why = "missing"
+    example, pid = folder.rsplit("_", 1)
+    print(f"{example} {pid} {why}")
 PY
 )
-echo "silent recordings: ${#SILENT[@]}"
+echo "recordings to (re-)run: ${#SILENT[@]}"
 [[ ${#SILENT[@]} -gt 0 ]] || exit 0
 
 if ! curl -sf http://127.0.0.1:8880/v1/models >/dev/null; then
@@ -46,10 +55,10 @@ sleep 15
 
 cd "$V3"
 for item in "${SILENT[@]}"; do
-  read -r ex pid <<< "$item"
-  echo "$(date -Is) rerun $ex $pid (silent: no audio reached agent)" | tee -a "$OUT/RERUNS.txt"
+  read -r ex pid why <<< "$item"
+  echo "$(date -Is) run $ex $pid ($why)" | tee -a "$OUT/RERUNS.txt"
   python "$ROOT/scripts/dev_harness.py" --provider "$LABEL" --example "$ex" --pid "$pid" --force \
     < /dev/null >> "$OUT/inference_rerun.log" 2>&1
 done
 cat /tmp/agent_tool_calls.log >> "$OUT/agent_tool_calls.log"
-echo "done; re-evaluate with the same judge as the main run"
+echo "done; now run: bash scripts/dev_eval.sh $LABEL"
