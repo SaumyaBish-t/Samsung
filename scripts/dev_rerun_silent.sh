@@ -38,6 +38,7 @@ if ! curl -sf http://127.0.0.1:8880/v1/models >/dev/null; then
   KOKORO_PID=$!
   for _ in $(seq 1 90); do curl -sf http://127.0.0.1:8880/v1/models >/dev/null && break; sleep 2; done
 fi
+: > /tmp/agent_tool_calls.log   # main run already copied its log into $OUT
 python -m agent.main start < /dev/null >> "$OUT/agent_rerun.log" 2>&1 &
 AGENT_PID=$!
 trap 'kill $AGENT_PID ${KOKORO_PID:-} 2>/dev/null || true' EXIT
