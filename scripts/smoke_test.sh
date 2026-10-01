@@ -22,20 +22,20 @@ export FDB_V3_DIR="$V3" HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
 export DEV_ASR_DEVICE="${DEV_ASR_DEVICE:-cuda-half}"   # cpu option starves a 7 GB-RAM WSL during live audio
 
 if ! curl -sf http://127.0.0.1:8880/v1/models >/dev/null; then
-  python -m agent.kokoro_server > /tmp/smoke_kokoro.log 2>&1 &
+  python -m agent.kokoro_server < /dev/null > /tmp/smoke_kokoro.log 2>&1 &
   KOKORO_PID=$!
   for _ in $(seq 1 60); do curl -sf http://127.0.0.1:8880/v1/models >/dev/null && break; sleep 2; done
 fi
 
 : > /tmp/agent_tool_calls.log
-python -m agent.main start > /tmp/smoke_agent.log 2>&1 &
+python -m agent.main start < /dev/null > /tmp/smoke_agent.log 2>&1 &
 AGENT_PID=$!
 trap 'kill $AGENT_PID ${KOKORO_PID:-} 2>/dev/null || true' EXIT
 sleep 12
 
 cd "$V3"
 for ex in "${EXAMPLES[@]}"; do
-  python "$ROOT/scripts/dev_harness.py" --provider "$LABEL" --example "$ex" --force 2>&1 | grep -E "Transcript|Perceived|❌|⚠️" || true
+  python "$ROOT/scripts/dev_harness.py" --provider "$LABEL" --example "$ex" --force < /dev/null 2>&1 | grep -E "Transcript|Perceived|❌|⚠️" || true
 done
 
 python - "$LABEL" "${EXAMPLES[@]}" <<'PY'

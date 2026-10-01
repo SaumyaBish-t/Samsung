@@ -71,7 +71,7 @@ if ! curl -sf "http://127.0.0.1:8880/v1/models" >/dev/null; then
     # shellcheck disable=SC2086
     docker run -d --name fdb-kokoro $GPU_FLAG -p 8880:8880 "$KOKORO_IMAGE" >/dev/null
   else
-    python -m agent.kokoro_server > "$OUT/kokoro.log" 2>&1 &
+    python -m agent.kokoro_server < /dev/null > "$OUT/kokoro.log" 2>&1 &
     KOKORO_PID=$!
   fi
   for _ in $(seq 1 180); do curl -sf "http://127.0.0.1:8880/v1/models" >/dev/null && break; sleep 2; done
@@ -89,7 +89,7 @@ python scripts/preflight.py | tee "$OUT/preflight.txt"
 log "Starting agent worker"
 : > /tmp/agent_tool_calls.log
 : > /tmp/agent_heartbeat.log
-python -m agent.main start > "$OUT/agent.log" 2>&1 &
+python -m agent.main start < /dev/null > "$OUT/agent.log" 2>&1 &
 AGENT_PID=$!
 trap 'kill $AGENT_PID ${KOKORO_PID:-} 2>/dev/null || true' EXIT
 sleep 15   # worker registration with LiveKit Cloud
