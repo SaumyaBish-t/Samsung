@@ -77,6 +77,11 @@ class AssistantFnc:
         self.user_speaking = False
         self.user_speech_starts = 0
         self._held_handles: set[int] = set()
+        self._dropped: list[tuple[str, dict]] = []
+
+    def take_dropped_calls(self) -> list[tuple[str, dict]]:
+        dropped, self._dropped = self._dropped, []
+        return dropped
 
     def on_user_state(self, state: str):
         speaking = state == "speaking"
@@ -116,6 +121,7 @@ class AssistantFnc:
 
         if not await self._intent_still_current(context):
             log.info("dropping superseded call %s (user kept talking)", key)
+            self._dropped.append((name, args))
             return json.dumps({"status": "cancelled",
                                "reason": "user kept talking; wait for their full request"})
 
